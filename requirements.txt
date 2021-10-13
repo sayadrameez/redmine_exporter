@@ -3,3 +3,4 @@ requests==2.26.0
 python-redmine==2.3.0
 jsonpickle==2.0.0
 pydash==5.1.0
+ciso8601==1.0.1

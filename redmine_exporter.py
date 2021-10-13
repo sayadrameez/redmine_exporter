@@ -14,6 +14,7 @@ from prometheus_client.core import GaugeMetricFamily, REGISTRY
 from redminelib import Redmine
 import jsonpickle
 import pydash
+import ciso8601
 # redmine_project_open_issues_total_count
 # redmine_project_closed_issues_total_count
 # redmine_project_issue_estimated_duration_hours
@@ -29,7 +30,7 @@ class RedmineCollector(object):
     # The build apimetrics we want to export about.
     apimetrics = ["redmine_project_open_issues_total_count", "redmine_project_closed_issues_total_count",
                 "redmine_project_issue_estimated_duration_hours", "redmine_project_issue_done_ratio", "redmine_project_issue_changesets_total_count"
-                "redmine_project_spenttime_duration_hours"
+                "redmine_project_spenttime_duration_hours","redmine_project_issue_due_date","redmine_project_issue_start_date","redmine_project_issue_closed_date"
                 ]
 
     def __init__(self, target, user, password):
@@ -69,7 +70,11 @@ class RedmineCollector(object):
             priority=pydash.get(issue,"_decoded_attrs.priority.name")            
             issueid =str(issue.id)
             estimatedhours = getattr(issue, 'estimated_hours',None)
-            doneratio= getattr(issue, 'done_ratio',None)           
+            doneratio= getattr(issue, 'done_ratio',None)        
+            duedate = getattr(issue, 'due_date',None)
+            startdate= getattr(issue, 'start_date',None)
+            closeddate= getattr(issue, 'closed_on',None)           
+
             if estimatedhours:
                 self._prometheus_metrics['estimatedduration'].add_metric([project.name,issueid,status,tracker,priority], estimatedhours)
             if doneratio:            
@@ -81,6 +86,20 @@ class RedmineCollector(object):
             if issue.changesets:
                 changesetscount = len(issue.changesets)
             self._prometheus_metrics['changesets'].add_metric([project.name,issueid,status,tracker,priority],changesetscount)
+            if duedate:
+                # ts = ciso8601.parse_datetime(duedate)
+                # to get time in seconds:
+                duetimestamp = time.mktime(duedate.timetuple())
+                self._prometheus_metrics['duedate'].add_metric([project.name,issueid,status,tracker,priority],duetimestamp)
+            if startdate:
+                # ts = ciso8601.parse_datetime(startdate)
+                # to get time in seconds:
+                starttimestamp = time.mktime(startdate.timetuple())
+                self._prometheus_metrics['startdate'].add_metric([project.name,issueid,status,tracker,priority],starttimestamp)
+            if closeddate:
+                # ts = ciso8601.parse_datetime(startdate)
+                closetimestamp = time.mktime(closeddate.timetuple())
+                self._prometheus_metrics['closeddate'].add_metric([project.name,issueid,status,tracker,priority],closetimestamp)
 
 
     def _setup_empty_prometheus_metrics(self):
@@ -101,6 +120,12 @@ class RedmineCollector(object):
                                     'Redmine Project Issue ChangeSets Total Count', labels=["projectname","issueid","status","tracker","priority"])
         self._prometheus_metrics['spentime'] = GaugeMetricFamily('redmine_project_issue_spenttime_duration_hours',
                                     'Redmine Project SpentTime Duration Hours', labels=["projectname","issueid","activity"])
+        self._prometheus_metrics['duedate'] = GaugeMetricFamily('redmine_project_issue_due_date',
+                                    'Redmine Project Issue Done Ratio', labels=["projectname","issueid","status","tracker","priority"])
+        self._prometheus_metrics['startdate'] = GaugeMetricFamily('redmine_project_issue_start_date',
+                                    'Redmine Project Issue Done Ratio', labels=["projectname","issueid","status","tracker","priority"])
+        self._prometheus_metrics['closeddate'] = GaugeMetricFamily('redmine_project_issue_closed_date',
+                                    'Redmine Project Issue Done Ratio', labels=["projectname","issueid","status","tracker","priority"])
 
 def parse_args():
     parser = argparse.ArgumentParser(
